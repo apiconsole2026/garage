@@ -105,7 +105,7 @@ fun AddVehicleDialog(
                                     leadingIcon = {
                                         Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
                                     },
-                                    label = { Text(label) }
+                                    label = { Text(label, fontSize = 11.sp, maxLines = 1) }
                                 )
                             }
                         }
@@ -116,35 +116,6 @@ fun AddVehicleDialog(
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("2. Marca do Veículo", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-
-                        // Quick select brand chips
-                        val topBrands = when (type) {
-                            "MOTO" -> listOf("Honda", "Yamaha", "BMW", "Kawasaki", "Royal Enfield", "Suzuki", "Shineray", "Bajaj")
-                            "TRUCK" -> listOf("Mercedes-Benz", "Volkswagen", "Volvo", "Scania", "Iveco")
-                            else -> listOf("Chevrolet", "Fiat", "Volkswagen", "Toyota", "Hyundai", "Honda", "Renault", "Ford", "Jeep", "Nissan", "Citroën", "Peugeot")
-                        }
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            items(topBrands) { bName ->
-                                val isSelected = brand.equals(bName, ignoreCase = true)
-                                SuggestionChip(
-                                    onClick = {
-                                        brand = bName
-                                        isCustomBrand = false
-                                        model = ""
-                                        isCustomModel = false
-                                        modelDropdownExpanded = true
-                                    },
-                                    label = { Text(bName, fontSize = 12.sp) },
-                                    colors = SuggestionChipDefaults.suggestionChipColors(
-                                        containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-                                    ),
-                                    border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null
-                                )
-                            }
-                        }
 
                         // Brand Dropdown Box
                         ExposedDropdownMenuBox(
