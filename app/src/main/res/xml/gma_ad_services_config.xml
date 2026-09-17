@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ad-services-config>
+    <!-- Empty config to disable adservices measurement service lookup in emulators/environments without AdServices -->
+</ad-services-config>

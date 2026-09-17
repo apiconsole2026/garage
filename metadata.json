@@ -1,0 +1,6 @@
+{
+  "name": "RevisAuto",
+  "description": "Controle de revisões periódicas, consumo de combustível, carteira de economia preventiva e alertas inteligentes para carros, motos e caminhões.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
