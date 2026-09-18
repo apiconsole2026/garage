@@ -61,24 +61,30 @@ fun DashboardScreen(
         contentPadding = PaddingValues(top = 16.dp, bottom = 80.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Hero Section / Welcome Banner
+        // Top Bar Action
         item {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 4.dp, bottom = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                com.example.ui.components.AppBrandLogo(size = 36.dp, cornerRadius = 10.dp)
-                IconButton(
-                    onClick = { showAddVehicleDialog = true }
+                Button(
+                    onClick = { showAddVehicleDialog = true },
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
-                        contentDescription = "Cadastrar do Catálogo",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(28.dp)
+                        contentDescription = "Novo Veículo",
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Novo Veículo",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
                     )
                 }
             }
@@ -133,11 +139,13 @@ fun DashboardScreen(
                     }
                 }
 
-                // Card 2: Economia
+                // Card 2: Adicionar Registro (Quick Action)
                 var showExpenseMenu by remember { mutableStateOf(false) }
 
                 Card(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { showExpenseMenu = true },
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f)
@@ -147,23 +155,26 @@ fun DashboardScreen(
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.Top
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = Icons.Default.AccountBalanceWallet,
-                                contentDescription = "Economia",
+                                imageVector = Icons.Default.PostAdd,
+                                contentDescription = "Adicionar Registro",
                                 tint = MaterialTheme.colorScheme.tertiary
                             )
                             Box {
-                                IconButton(
+                                FilledTonalIconButton(
                                     onClick = { showExpenseMenu = true },
-                                    modifier = Modifier.size(24.dp)
+                                    modifier = Modifier.size(28.dp),
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
+                                        contentColor = MaterialTheme.colorScheme.tertiary
+                                    )
                                 ) {
                                     Icon(
                                         Icons.Default.Add,
                                         contentDescription = "Adicionar",
-                                        tint = MaterialTheme.colorScheme.tertiary,
-                                        modifier = Modifier.size(18.dp)
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                                 DropdownMenu(
@@ -203,14 +214,15 @@ fun DashboardScreen(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "R$ %.2f".format(economyStats.netSavings),
-                            style = MaterialTheme.typography.titleSmall,
+                            text = "Adicionar Registro",
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.tertiary
                         )
                         Text(
-                            text = "Economia Estimada",
+                            text = "Adicione seus gastos",
                             style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }

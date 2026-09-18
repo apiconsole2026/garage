@@ -25,6 +25,10 @@ class VehicleRepository(private val vehicleDao: VehicleDao) {
     }
 
     suspend fun deleteVehicle(vehicle: Vehicle) {
+        // Cascade delete all associated fuel logs, alerts and history
+        vehicleDao.deleteFuelLogsByVehicleId(vehicle.id)
+        vehicleDao.deleteAlertsByVehicleId(vehicle.id)
+        vehicleDao.deleteHistoryByVehicleId(vehicle.id)
         vehicleDao.deleteVehicle(vehicle)
     }
 

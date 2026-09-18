@@ -316,18 +316,35 @@ class VehicleViewModel(application: Application) : AndroidViewModel(application)
 
     // MATHEMATICAL LOGIC CALCULATIONS
     
-    // Calculates consumption (km/L) for a given vehicle using full-tank strategy
-    fun getVehicleConsumption(vehicleId: Int): Double {
+    // Data class representing consumption calculation results
+    data class ConsumptionResult(
+        val kmPerLiter: Double,
+        val isReal: Boolean,
+        val totalDistance: Double,
+        val totalLiters: Double,
+        val logCount: Int
+    )
+
+    // Calculates real consumption (km/L) for a given vehicle using fuel logs
+    fun getVehicleConsumptionResult(vehicleId: Int): ConsumptionResult {
         val vehicleLogs = allFuelLogs.value.filter { it.vehicleId == vehicleId }.sortedBy { it.mileage }
-        if (vehicleLogs.size < 2) {
-            // Fallback estimation based on vehicle type
-            val v = vehicles.value.find { it.id == vehicleId } ?: return 10.0
-            return when (v.type) {
-                "MOTO" -> 35.0
-                "TRUCK" -> 4.5
-                else -> 11.5 // CAR
-            }
+        val v = vehicles.value.find { it.id == vehicleId }
+        val defaultFallback = when (v?.type) {
+            "MOTO" -> 35.0
+            "TRUCK" -> 4.5
+            else -> 11.5 // CAR
         }
+
+        if (vehicleLogs.size < 2) {
+            return ConsumptionResult(
+                kmPerLiter = defaultFallback,
+                isReal = false,
+                totalDistance = 0.0,
+                totalLiters = 0.0,
+                logCount = vehicleLogs.size
+            )
+        }
+
         var totalDistance = 0.0
         var totalLiters = 0.0
         for (i in 1 until vehicleLogs.size) {
@@ -336,16 +353,39 @@ class VehicleViewModel(application: Application) : AndroidViewModel(application)
             val distance = curr.mileage - prev.mileage
             if (distance > 0) {
                 totalDistance += distance
-                totalLiters += curr.liters // consumption is liters needed to run this distance
+                totalLiters += curr.liters
             }
         }
-        return if (totalLiters > 0) totalDistance / totalLiters else 10.0
+
+        return if (totalLiters > 0 && totalDistance > 0) {
+            ConsumptionResult(
+                kmPerLiter = totalDistance / totalLiters,
+                isReal = true,
+                totalDistance = totalDistance,
+                totalLiters = totalLiters,
+                logCount = vehicleLogs.size
+            )
+        } else {
+            ConsumptionResult(
+                kmPerLiter = defaultFallback,
+                isReal = false,
+                totalDistance = 0.0,
+                totalLiters = 0.0,
+                logCount = vehicleLogs.size
+            )
+        }
+    }
+
+    // Calculates consumption (km/L) for a given vehicle using full-tank strategy
+    fun getVehicleConsumption(vehicleId: Int): Double {
+        return getVehicleConsumptionResult(vehicleId).kmPerLiter
     }
 
     // Calculates economy & investment stats for wallet screen
     fun getEconomyStats(): EconomyStats {
-        val historyList = allHistory.value
-        val fuelList = allFuelLogs.value
+        val validVehicleIds = vehicles.value.map { it.id }.toSet()
+        val historyList = allHistory.value.filter { it.vehicleId in validVehicleIds }
+        val fuelList = allFuelLogs.value.filter { it.vehicleId in validVehicleIds }
         
         val totalSpentPreventive = historyList.filter { it.isPreventive }.sumOf { it.cost }
         val totalSpentCorrective = historyList.filter { !it.isPreventive }.sumOf { it.cost }

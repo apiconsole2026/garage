@@ -42,6 +42,9 @@ interface VehicleDao {
     @Query("DELETE FROM fuel_logs WHERE id = :id")
     suspend fun deleteFuelLog(id: Int)
 
+    @Query("DELETE FROM fuel_logs WHERE vehicleId = :vehicleId")
+    suspend fun deleteFuelLogsByVehicleId(vehicleId: Int)
+
     // MAINTENANCE ALERTS
     @Query("SELECT * FROM maintenance_alerts WHERE vehicleId = :vehicleId")
     fun getAlertsForVehicle(vehicleId: Int): Flow<List<MaintenanceAlert>>
@@ -58,6 +61,9 @@ interface VehicleDao {
     @Delete
     suspend fun deleteAlert(alert: MaintenanceAlert)
 
+    @Query("DELETE FROM maintenance_alerts WHERE vehicleId = :vehicleId")
+    suspend fun deleteAlertsByVehicleId(vehicleId: Int)
+
     // MAINTENANCE HISTORY
     @Query("SELECT * FROM maintenance_history WHERE vehicleId = :vehicleId ORDER BY mileage DESC")
     fun getHistoryForVehicle(vehicleId: Int): Flow<List<MaintenanceHistory>>
@@ -73,4 +79,7 @@ interface VehicleDao {
 
     @Query("DELETE FROM maintenance_history WHERE id = :id")
     suspend fun deleteHistory(id: Int)
+
+    @Query("DELETE FROM maintenance_history WHERE vehicleId = :vehicleId")
+    suspend fun deleteHistoryByVehicleId(vehicleId: Int)
 }

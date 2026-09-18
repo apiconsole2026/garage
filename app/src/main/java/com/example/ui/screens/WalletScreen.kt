@@ -45,13 +45,19 @@ fun WalletScreen(
     modifier: Modifier = Modifier
 ) {
     val vehicles by viewModel.vehicles.collectAsState()
-    val history by viewModel.allHistory.collectAsState()
-    val fuelLogs by viewModel.allFuelLogs.collectAsState()
+    val rawHistory by viewModel.allHistory.collectAsState()
+    val rawFuelLogs by viewModel.allFuelLogs.collectAsState()
+
+    // Ensure expenses associated with removed vehicles are immediately excluded from display
+    val validVehicleIds = remember(vehicles) { vehicles.map { it.id }.toSet() }
+    val history = remember(rawHistory, validVehicleIds) { rawHistory.filter { it.vehicleId in validVehicleIds } }
+    val fuelLogs = remember(rawFuelLogs, validVehicleIds) { rawFuelLogs.filter { it.vehicleId in validVehicleIds } }
     val stats = viewModel.getEconomyStats()
 
     var selectedFilter by remember { mutableStateOf(WalletFilter.ALL) }
     var showAddCorrectiveDialog by remember { mutableStateOf(false) }
     var showAddFuelDialog by remember { mutableStateOf(false) }
+    var showAddPreventiveDialog by remember { mutableStateOf(false) }
 
     // Edit states
     var editingHistory by remember { mutableStateOf<MaintenanceHistory?>(null) }
@@ -61,6 +67,26 @@ fun WalletScreen(
 
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
 
+    // Calculation for current month spent
+    val currentMonthTotal = remember(history, fuelLogs) {
+        val calendar = Calendar.getInstance()
+        val currentMonth = calendar.get(Calendar.MONTH)
+        val currentYear = calendar.get(Calendar.YEAR)
+
+        val calItem = Calendar.getInstance()
+        val historyMonthCost = history.filter {
+            calItem.timeInMillis = it.date
+            calItem.get(Calendar.MONTH) == currentMonth && calItem.get(Calendar.YEAR) == currentYear
+        }.sumOf { it.cost }
+
+        val fuelMonthCost = fuelLogs.filter {
+            calItem.timeInMillis = it.date
+            calItem.get(Calendar.MONTH) == currentMonth && calItem.get(Calendar.YEAR) == currentYear
+        }.sumOf { it.totalCost }
+
+        historyMonthCost + fuelMonthCost
+    }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -68,113 +94,40 @@ fun WalletScreen(
         contentPadding = PaddingValues(top = 16.dp, bottom = 80.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 1. Header: Total Investido vs Economia (ROI Balanço Geral)
+        // 1. Header simples: Título "Carteira" + Subtítulo com total gasto no mês atual em destaque
         item {
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(
-                                Color(0xFF0B0F19), // Structural Trust
-                                Color(0xFF162032)
-                            )
-                        )
-                    )
-                    .padding(20.dp),
-                contentAlignment = Alignment.CenterStart
+                    .padding(vertical = 4.dp)
             ) {
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                color = Color(0xFFFF521D),
-                                shape = RoundedCornerShape(6.dp)
-                            ) {
-                                Text(
-                                    text = "FINANCEIRO",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = Color.White,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Balanço do Veículo",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Surface(
-                            color = Color.White.copy(alpha = 0.12f),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                text = "Investido vs Economizado",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFCBD5E1),
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        // Total Investido (Manutenções + Combustível)
-                        Column {
-                            Text(
-                                text = "Total Investido",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF94A3B8)
-                            )
-                            Text(
-                                text = "R$ %,.2f".format(stats.totalInvested),
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color.White
-                            )
-                        }
-
-                        // Economia Gerada
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = "Economia Salva",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF94A3B8)
-                            )
-                            Text(
-                                text = "+R$ %,.2f".format(stats.netSavings),
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFFFF521D) // Brand Primary Action
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "Carteira",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     Text(
-                        text = "Manutenções preventivas e consumo controlados evitam quebras e reduzem o custo por KM.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF94A3B8),
-                        fontSize = 11.sp
+                        text = "Total gasto este mês:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "R$ %,.2f".format(currentMonthTotal),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
             }
         }
 
-        // 2. Summary Mini Cards: Combustível, Preventiva, Corretiva
+        // 2. Summary Mini Cards: Combustível, Preventiva, Quebras com botão +
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -186,16 +139,40 @@ fun WalletScreen(
                     shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0))
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                    Column(modifier = Modifier.padding(10.dp)) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(Icons.Default.LocalGasStation, contentDescription = "Combustível", tint = Color(0xFFE65100), modifier = Modifier.size(20.dp))
-                            Text("Abastecimento", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.LocalGasStation,
+                                    contentDescription = "Combustível",
+                                    tint = Color(0xFFE65100),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    "Abastecimento",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFE65100)
+                                )
+                            }
+                            IconButton(
+                                onClick = { showAddFuelDialog = true },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = "Adicionar Abastecimento",
+                                    tint = Color(0xFFE65100),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = "R$ %,.2f".format(stats.totalSpentFuel),
                             fontWeight = FontWeight.ExtraBold,
@@ -219,16 +196,40 @@ fun WalletScreen(
                     shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9))
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                    Column(modifier = Modifier.padding(10.dp)) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(Icons.Default.Build, contentDescription = "Preventiva", tint = Color(0xFF2E7D32), modifier = Modifier.size(20.dp))
-                            Text("Preventiva", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Build,
+                                    contentDescription = "Preventiva",
+                                    tint = Color(0xFF2E7D32),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    "Preventiva",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF2E7D32)
+                                )
+                            }
+                            IconButton(
+                                onClick = { showAddPreventiveDialog = true },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = "Adicionar Preventiva",
+                                    tint = Color(0xFF2E7D32),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = "R$ %,.2f".format(stats.totalSpentPreventive),
                             fontWeight = FontWeight.ExtraBold,
@@ -249,16 +250,40 @@ fun WalletScreen(
                     shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE))
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                    Column(modifier = Modifier.padding(10.dp)) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(Icons.Default.Warning, contentDescription = "Quebra", tint = Color(0xFFC62828), modifier = Modifier.size(20.dp))
-                            Text("Quebras", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFC62828))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Warning,
+                                    contentDescription = "Quebra",
+                                    tint = Color(0xFFC62828),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    "Quebras",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFC62828)
+                                )
+                            }
+                            IconButton(
+                                onClick = { showAddCorrectiveDialog = true },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = "Adicionar Quebra",
+                                    tint = Color(0xFFC62828),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = "R$ %,.2f".format(stats.totalSpentCorrective),
                             fontWeight = FontWeight.ExtraBold,
@@ -275,47 +300,7 @@ fun WalletScreen(
             }
         }
 
-        // 3. Action Buttons: Lançar Quebra & Lançar Abastecimento
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Botão Lançar Quebra Corretiva
-                Button(
-                    onClick = { showAddCorrectiveDialog = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(42.dp)
-                        .testTag("log_corrective_button")
-                ) {
-                    Icon(Icons.Default.Warning, contentDescription = "Quebra", modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Lançar Quebra", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-
-                // Botão Lançar Abastecimento
-                Button(
-                    onClick = { showAddFuelDialog = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF6C00)),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(42.dp)
-                        .testTag("log_fuel_wallet_button")
-                ) {
-                    Icon(Icons.Default.LocalGasStation, contentDescription = "Abastecimento", modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Abastecimento", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-
-        // 4. Chart 1: Expenses Comparison
+        // 3. Chart 1: Expenses Comparison
         item {
             ExpensesComparisonChart(
                 preventiveCost = stats.totalSpentPreventive,
@@ -323,7 +308,7 @@ fun WalletScreen(
             )
         }
 
-        // 5. Chart 2: Savings ROI Donut Chart
+        // 4. Chart 2: Savings ROI Donut Chart
         item {
             SavingsSummaryPieChart(
                 netSavings = stats.netSavings,
@@ -331,12 +316,12 @@ fun WalletScreen(
             )
         }
 
-        // 6. Ad Banner
+        // 5. Ad Banner
         item {
             LargeNativeAdPlaceholder()
         }
 
-        // 7. Relatório Detalhado de Gastos & Histórico (Com Opção de Editar / Excluir)
+        // 6. Relatório Detalhado de Gastos & Histórico (Com Opção de Editar / Excluir)
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
@@ -648,7 +633,165 @@ fun WalletScreen(
         }
     }
 
-    // 8. Dialog: Add Corrective Break
+    // Dialog: Add Preventive Maintenance
+    if (showAddPreventiveDialog) {
+        var vehicleId by remember { mutableStateOf<Int?>(vehicles.firstOrNull()?.id) }
+        var expanded by remember { mutableStateOf(false) }
+        var notes by remember { mutableStateOf("") }
+
+        val maintenanceItems = remember {
+            mutableStateListOf(
+                Triple("Troca de Óleo", false, ""),
+                Triple("Filtro de Ar", false, ""),
+                Triple("Filtro de Combustível", false, ""),
+                Triple("Velas de Ignição", false, ""),
+                Triple("Correia Dentada", false, ""),
+                Triple("Freios", false, ""),
+                Triple("Pneus", false, ""),
+                Triple("Alinhamento/Balanceamento", false, ""),
+                Triple("Fluido de Freio", false, ""),
+                Triple("Fluido de Arrefecimento", false, ""),
+                Triple("Ar Condicionado", false, ""),
+                Triple("Bateria", false, ""),
+                Triple("Outros", false, "")
+            )
+        }
+
+        val totalCost = maintenanceItems.sumOf {
+            it.third.replace(",", ".").toDoubleOrNull() ?: 0.0
+        }
+
+        AlertDialog(
+            onDismissRequest = { showAddPreventiveDialog = false },
+            title = { Text("Manutenção Preventiva") },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Vehicle Selector
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        val currentVehicle = vehicles.find { it.id == vehicleId }
+                        OutlinedButton(
+                            onClick = { expanded = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(currentVehicle?.name ?: "Selecione o Veículo")
+                            Spacer(modifier = Modifier.weight(1f))
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = "dropdown")
+                        }
+                        DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false }
+                        ) {
+                            vehicles.forEach { vehicle ->
+                                DropdownMenuItem(
+                                    text = { Text(vehicle.name) },
+                                    onClick = {
+                                        vehicleId = vehicle.id
+                                        expanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = "Selecione os itens e informe o valor de cada:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    // Scrollable list of items
+                    Box(modifier = Modifier.weight(1f, fill = false).heightIn(max = 280.dp)) {
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            items(maintenanceItems.size) { index ->
+                                val item = maintenanceItems[index]
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Checkbox(
+                                        checked = item.second,
+                                        onCheckedChange = { checked ->
+                                            maintenanceItems[index] = Triple(item.first, checked, item.third)
+                                        }
+                                    )
+                                    Text(
+                                        text = item.first,
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                    if (item.second) {
+                                        OutlinedTextField(
+                                            value = item.third,
+                                            onValueChange = { value ->
+                                                maintenanceItems[index] = Triple(item.first, item.second, value)
+                                            },
+                                            prefix = { Text("R$ ", fontSize = 12.sp) },
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                            modifier = Modifier.width(110.dp),
+                                            singleLine = true
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (totalCost > 0) {
+                        Text(
+                            text = "Total: R$ %.2f".format(totalCost),
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = notes,
+                        onValueChange = { notes = it },
+                        label = { Text("Observações (Oficina, Peças)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val vId = vehicleId
+                        val selectedVehicle = vehicles.find { it.id == vId }
+                        val mileage = selectedVehicle?.currentMileage ?: 0.0
+                        if (vId != null) {
+                            maintenanceItems.filter { it.second }.forEach { item ->
+                                val cost = item.third.replace(",", ".").toDoubleOrNull() ?: 0.0
+                                if (cost > 0.0) {
+                                    viewModel.addManualMaintenanceHistory(
+                                        vehicleId = vId,
+                                        title = item.first,
+                                        cost = cost,
+                                        mileage = mileage,
+                                        isPreventive = true,
+                                        notes = notes
+                                    )
+                                }
+                            }
+                        }
+                        showAddPreventiveDialog = false
+                    }
+                ) {
+                    Text("Salvar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddPreventiveDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    // Dialog: Add Corrective Break
     if (showAddCorrectiveDialog) {
         var vehicleId by remember { mutableStateOf<Int?>(vehicles.firstOrNull()?.id) }
         var title by remember { mutableStateOf("") }
@@ -761,7 +904,7 @@ fun WalletScreen(
         )
     }
 
-    // 9. Dialog: Add Fuel Log
+    // Dialog: Add Fuel Log
     if (showAddFuelDialog) {
         var vehicleId by remember { mutableStateOf<Int?>(vehicles.firstOrNull()?.id) }
         var mileageStr by remember { mutableStateOf("") }
@@ -859,7 +1002,7 @@ fun WalletScreen(
         )
     }
 
-    // 10. Dialog: Edit Maintenance History
+    // Dialog: Edit Maintenance History
     editingHistory?.let { record ->
         var title by remember { mutableStateOf(record.title) }
         var costStr by remember { mutableStateOf(record.cost.toString()) }
@@ -952,7 +1095,7 @@ fun WalletScreen(
         )
     }
 
-    // 11. Dialog: Edit Fuel Log
+    // Dialog: Edit Fuel Log
     editingFuelLog?.let { fuelLog ->
         var mileageStr by remember { mutableStateOf("%.0f".format(fuelLog.mileage)) }
         var litersStr by remember { mutableStateOf(fuelLog.liters.toString()) }
@@ -1020,7 +1163,7 @@ fun WalletScreen(
         )
     }
 
-    // 12. Delete Confirmation Dialogs
+    // Delete Confirmation Dialogs
     deletingHistory?.let { record ->
         AlertDialog(
             onDismissRequest = { deletingHistory = null },

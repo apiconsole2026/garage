@@ -56,6 +56,7 @@ fun GarageScreen(
     var showManualChecklistMilestone by remember { mutableStateOf<Int?>(null) }
     var showEditSpecsDialog by remember { mutableStateOf(false) }
     var showCatalogPickerModal by remember { mutableStateOf(false) }
+    var isSpecsExpanded by remember { mutableStateOf(false) }
 
     // Auto-select first vehicle if none selected
     LaunchedEffect(vehicles, selectedVehicleId) {
@@ -73,9 +74,10 @@ fun GarageScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Minha Garagem",
                     style = MaterialTheme.typography.titleLarge,
@@ -86,6 +88,15 @@ fun GarageScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+            FilledTonalButton(
+                onClick = { showAddVehicleDialog = true },
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Novo Veículo", modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Novo Veículo", fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
         }
 
@@ -191,7 +202,14 @@ fun GarageScreen(
             selectedVehicle?.let { vehicle ->
                 val vehicleAlerts = allAlerts.filter { it.vehicleId == vehicle.id }
                 val vehicleFuelLogs = allFuelLogs.filter { it.vehicleId == vehicle.id }.sortedByDescending { it.mileage }
-                val realConsumption = viewModel.getVehicleConsumption(vehicle.id)
+                val consumptionResult = viewModel.getVehicleConsumptionResult(vehicle.id)
+                val catalogSpec = VehicleBrandsDb.findSpec(vehicle.brand, vehicle.model)
+                val baselineSpecKmPerL: Double? = catalogSpec?.defaultKmPerL
+                    ?: when (vehicle.type) {
+                        "MOTO" -> 35.0
+                        "TRUCK" -> 4.5
+                        else -> 11.5
+                    }
 
                 // Main Content List
                 LazyColumn(
@@ -291,111 +309,141 @@ fun GarageScreen(
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { isSpecsExpanded = !isSpecsExpanded },
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
                                         Icon(
                                             imageVector = Icons.Default.FactCheck,
                                             contentDescription = "Ficha Técnica",
                                             tint = MaterialTheme.colorScheme.primary
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = "Ficha Técnica do Veículo",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Bold
-                                        )
+                                        Column {
+                                            Text(
+                                                text = "Ficha Técnica do Veículo",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = if (isSpecsExpanded) "Toque para recolher" else "Toque para expandir",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                     }
-                                    TextButton(
-                                        onClick = { showEditSpecsDialog = true },
-                                        contentPadding = PaddingValues(horizontal = 8.dp)
-                                    ) {
-                                        Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(14.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Ajustar Ficha", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        if (isSpecsExpanded) {
+                                            TextButton(
+                                                onClick = { showEditSpecsDialog = true },
+                                                contentPadding = PaddingValues(horizontal = 8.dp)
+                                            ) {
+                                                Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Ajustar Ficha", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                        IconButton(
+                                            onClick = { isSpecsExpanded = !isSpecsExpanded },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isSpecsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                                contentDescription = if (isSpecsExpanded) "Recolher ficha técnica" else "Expandir ficha técnica",
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(10.dp))
+                                AnimatedVisibility(visible = isSpecsExpanded) {
+                                    Column {
+                                        Spacer(modifier = Modifier.height(10.dp))
 
-                                // Grid of technical items
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    // Row 1: Motor & Óleo
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        SpecItemBox(
-                                            title = "Motor & Cilindrada",
-                                            value = vehicle.engineSpec.ifEmpty { "Motor Padrão" },
-                                            icon = Icons.Default.PrecisionManufacturing,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        SpecItemBox(
-                                            title = "Óleo Recomendado",
-                                            value = vehicle.oilSpec.ifEmpty { "5W30 Sintético" },
-                                            icon = Icons.Default.Opacity,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
+                                        // Grid of technical items
+                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            // Row 1: Motor & Óleo
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                SpecItemBox(
+                                                    title = "Motor & Cilindrada",
+                                                    value = vehicle.engineSpec.ifEmpty { "Motor Padrão" },
+                                                    icon = Icons.Default.PrecisionManufacturing,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                SpecItemBox(
+                                                    title = "Óleo Recomendado",
+                                                    value = vehicle.oilSpec.ifEmpty { "5W30 Sintético" },
+                                                    icon = Icons.Default.Opacity,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                            }
 
-                                    // Row 2: Capacidade de Óleo & Calibragem de Pneus
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        SpecItemBox(
-                                            title = "Capacidade do Cárter",
-                                            value = vehicle.oilCapacity.ifEmpty { "3.5 Litros" },
-                                            icon = Icons.Default.Speed,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        SpecItemBox(
-                                            title = "Calibragem dos Pneus",
-                                            value = vehicle.tirePressure.ifEmpty { "32 PSI Diant. / 30 PSI Tras." },
-                                            icon = Icons.Default.TireRepair,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
+                                            // Row 2: Capacidade de Óleo & Calibragem de Pneus
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                SpecItemBox(
+                                                    title = "Capacidade do Cárter",
+                                                    value = vehicle.oilCapacity.ifEmpty { "3.5 Litros" },
+                                                    icon = Icons.Default.Speed,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                SpecItemBox(
+                                                    title = "Calibragem dos Pneus",
+                                                    value = vehicle.tirePressure.ifEmpty { "32 PSI Diant. / 30 PSI Tras." },
+                                                    icon = Icons.Default.TireRepair,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                            }
 
-                                    // Row 3: Tanque & Velas
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        SpecItemBox(
-                                            title = "Tanque Combustível",
-                                            value = vehicle.fuelTankCapacity.ifEmpty { "45 Litros" },
-                                            icon = Icons.Default.LocalGasStation,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        SpecItemBox(
-                                            title = "Velas de Ignição",
-                                            value = vehicle.sparkPlug.ifEmpty { "NGK Laser Iridium" },
-                                            icon = Icons.Default.Bolt,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
+                                            // Row 3: Tanque & Velas
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                SpecItemBox(
+                                                    title = "Tanque Combustível",
+                                                    value = vehicle.fuelTankCapacity.ifEmpty { "45 Litros" },
+                                                    icon = Icons.Default.LocalGasStation,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                SpecItemBox(
+                                                    title = "Velas de Ignição",
+                                                    value = vehicle.sparkPlug.ifEmpty { "NGK Laser Iridium" },
+                                                    icon = Icons.Default.Bolt,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                            }
 
-                                    // Row 4: Fluido de Freio & Arrefecimento
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        SpecItemBox(
-                                            title = "Fluido de Freio",
-                                            value = vehicle.brakeFluid.ifEmpty { "DOT 4 Sintético" },
-                                            icon = Icons.Default.Warning,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        SpecItemBox(
-                                            title = "Arrefecimento",
-                                            value = vehicle.coolantType.ifEmpty { "Orgânico Long Life 50/50" },
-                                            icon = Icons.Default.Thermostat,
-                                            modifier = Modifier.weight(1f)
-                                        )
+                                            // Row 4: Fluido de Freio & Arrefecimento
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                SpecItemBox(
+                                                    title = "Fluido de Freio",
+                                                    value = vehicle.brakeFluid.ifEmpty { "DOT 4 Sintético" },
+                                                    icon = Icons.Default.Warning,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                SpecItemBox(
+                                                    title = "Arrefecimento",
+                                                    value = vehicle.coolantType.ifEmpty { "Orgânico Long Life 50/50" },
+                                                    icon = Icons.Default.Thermostat,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
